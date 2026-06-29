@@ -28,6 +28,12 @@ const { formidable } = require('formidable');  // formidable v3 用 named import
 function getUploadConfig() {
   // TODO: 實作此函式
   // 提示：用 || 給預設值；MAX_FILE_SIZE_MB 是字串，記得先 Number() 轉型再換算 bytes
+  const maxFileSize = (Number(process.env.MAX_FILE_SIZE_MB) || 5) *1024*1024
+  return {
+    uploadDir: process.env.UPLOAD_DIR || '/tmp',
+    maxFileSize,
+    gymName: process.env.GYM_NAME || '未命名健身房'
+  }
 }
 
 // ========== 任務二：取副檔名 ==========
@@ -51,6 +57,13 @@ function getUploadConfig() {
 function getFileExtension(filename) {
   // TODO: 實作此函式
   // 提示：用 lastIndexOf('.') 找最後一個 .，toLowerCase() 轉小寫
+  const index = filename.lastIndexOf('.');
+  const extension = filename.slice(index).toLowerCase()
+  if(index !== -1 ){
+    return extension ;
+  }else{
+    return  '' ;
+  }
 }
 
 // ========== 任務三：解析檔案 metadata ==========
@@ -76,6 +89,14 @@ function getFileExtension(filename) {
 function parseFileMetadata(file) {
   // TODO: 實作此函式
   // 提示：呼叫 getFileExtension 取副檔名，Math.round(size / 1024) 算 KB
+  const filename = file.originalFilename
+  const sizeKB = Math.round(file.size/1024)
+  const ext = getFileExtension(filename)
+  return {
+    filename,
+    sizeKB,
+    ext
+  }
 }
 
 // ========== 任務四：產出 upload log 字串 ==========
@@ -98,6 +119,8 @@ function parseFileMetadata(file) {
 function formatUploadLog(meta, config) {
   // TODO: 實作此函式
   // 提示：用 template literal 組字串
+  return `[FitClub] Uploaded ${meta.filename} (${meta.sizeKB} KB) → ${config.uploadDir}`
+
 }
 
 // ========== 任務五：路由分派 ==========
@@ -137,6 +160,50 @@ function router(req, res, config) {
   //     form.on('error', (err) => {
   //       console.log(err); // 記錄 log、清理暫存檔、額外監控可以寫在這邊
   //     });  
+  function  handleUpload(req, res, config){
+    const form = formidable({
+      uploadDir:config.uploadDir,
+      maxFileSize:config.maxFileSize,
+      keepExtensions: true
+    })
+    
+    form.parse(req,(err,fields,flies)=>{
+      if(err){
+        res.writeHead(500,{'Content-type':'application/json'});
+        res.write(JSON.stringify({'error': err.message}));
+        res.end();
+      }else if (!flies.file?.[0]){
+        res.writeHead(400,{'Content-type':'application/json'});
+        res.write(JSON.stringify({'error':'No file uploaded'}));
+        res.end();
+      }else{
+        const file = flies.file?.[0]
+        const { filename,sizeKB,ext } = parseFileMetadata(file)
+        const savedPath = file.filepath
+        res.writeHead(200,{'Content-type':'application/json'});
+        res.write(JSON.stringify({
+          filename,
+          sizeKB,
+          ext,
+          savedPath
+        }));
+        res.end();
+      }
+    })
+  }
+
+  function handleNotFound(req,res){
+    res.writeHead(404,{'Content-type':'application/json'})
+    res.write(JSON.stringify({'error':'Not Found'}))
+    res.end()
+  }
+
+  if( req.url === '/coaches/avatar' && req.method === 'POST'){
+    handleUpload(req, res, config)
+  }else{
+    handleNotFound(req,res)
+  }
+
 }
 
 // ========== 任務六：建立上傳 server ==========
@@ -158,6 +225,9 @@ function router(req, res, config) {
 function createUploadServer(config) {
   // TODO: 實作此函式
   // 提示：主邏輯都在 router 裡，這邊函式內容不多
+  fs.mkdirSync(config.uploadDir, { recursive: true })
+  const server = http.createServer((req,res)=>{ router(req, res,config) })
+  return server
 }
 
 module.exports = {
