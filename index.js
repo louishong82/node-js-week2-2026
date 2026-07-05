@@ -119,7 +119,7 @@ function parseFileMetadata(file) {
 function formatUploadLog(meta, config) {
   // TODO: 實作此函式
   // 提示：用 template literal 組字串
-  return `[FitClub] Uploaded ${meta.filename} (${meta.sizeKB} KB) → ${config.uploadDir}`
+  return `[${config.gymName}] Uploaded ${meta.filename} (${meta.sizeKB} KB) → ${config.uploadDir}`
 
 }
 
